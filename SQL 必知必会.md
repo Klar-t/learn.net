@@ -124,9 +124,127 @@
 
     - 使用简单的rollback和commit语句，就可以写入或撤销整个事务。但是，只对简单的事务才能这样，复杂的事务需要部分提交或回退
 
-      ```
+      ``` sql
+      --使用savepoint语句创建保留点
+      davepoint delete1;--oracle
+      save transaction delete1 --SQL server
       
+      --使用rollback回退到保留点
+      rollback to delete1 --oracle
+      rollback transaction delete1 --SQL server
+      
+      --一条完整的SQL Server例子
+      BEGIN TRANSACTION
+      INSERT INTO Customers(cust_id, cust_name)
+      VALUES('1000000010', 'Toys Emporium');
+      SAVE TRANSACTION StartOrder;
+      INSERT INTO Orders(order_num, order_date, cust_id)
+      VALUES(20100,'2001/12/1','1000000010');
+      IF @@ERROR <> 0 ROLLBACK TRANSACTION StartOrder;
+      INSERT INTO OrderItems(order_num, order_item, prod_id, quantity, item_price)
+      VALUES(20100, 1, 'BR01', 100, 5.49);
+      IF @@ERROR <> 0 ROLLBACK TRANSACTION StartOrder;
+      INSERT INTO OrderItems(order_num, order_item, prod_id, quantity, item_price)
+      VALUES(20100, 2, 'BR03', 100, 10.99);
+      IF @@ERROR <> 0 ROLLBACK TRANSACTION StartOrder;
+      COMMIT TRANSACTION
+      
+      这里的事务处理块中包含了4条insert语句。在第一条insert语句之后定义了一个保留点，因此如果后面的任何一个 insert操作失败，事务处理最近回退到这里。在SQL Server中，可检测一个名为@@error的变量，看操作是否成功。（其他DBMS使用不同的函数或变量返回此信息）如果@@error返回一个非0值，表示有错误发生，事务处理回退到保留点。如果整个事务处理成功，发布commit以保留数据。
+      --保留点越多越好  如果在SQL代码中设置任意多的保留点，就可以灵活的进行回退
+      ```
+
+- 使用游标
+
+  - 
+
+- 约束
+
+  - 主键 一种唯一的约束 保证一列（或一组列）中的值是唯一的，而且永不改动。
+
+  - 主键满足条件
+
+    - 任意两行的主键值都不相同。
+
+    - 每行都具有一个主键值（即劣种不允许null值）
+
+    - 包含主键值的列从不修改或更新（大部分DBMS不允许这么做）
+
+    - 主键值不能重用。如果从表中删除莫一行，器煮简直不分牌非新行
+
+    - ```sql
+      CREATE TABLE Vendors (
+      vend_id CHAR(10) NOT NULL PRIMARY KEY,
+      vend_name CHAR(50) NOT NULL, 
+      );
+      
+      --
+      ALTER TABLE Vendors ADD CONSTRAINT PRIMARY KEY (vend_id);
       ```
 
     - 
+
+- 检查约束
+
+  - 检查约束用来保证一列（或一组列）中的数据满足一组指定的条件。
+
+  - 检查约束的常见用途
+
+    - 检查最小或最大值。例如：防止0 个物品的订单（即使0是合法的数）
+
+    - 指定范围。例如：保证发货日期大于今天的日期，但超过今天起一年后的日期
+
+    - 只允许特定的值。例如：在性别字段中只允许M或F。
+
+    - ```SQL
+      CREATE TABLE OrderItems ( order_num INTEGER NOT NULL, order_item INTEGER NOT NULL,
+      prod_id CHAR(10) NOT NULL, quantity INTEGER NOT NULL CHECK (quantity > 0), item_price MONEY NOT NULL
+      );
+      --利用这个约束，任何插入（或更新）的行都会被检查，保证quantity大于0
+      
+      --检查名为gender的列只包含M或F，可编写如下的alter table语句
+      add constranint check（gender like'[MF]'）
+      ```
+
+- 索引
+
+  - 索引改善检索操作的性能，但降低了数据插入、修改和删除的性能。在执行这些操作室，DBMS必须动态的更新索引
+
+  - 索引数据可能要占用大量的存储空间。
+
+  - 并非所有数据都适合索引。取值不多的数据（如州）不如具有更多可能值的数据（如 姓，名），能通过索引得到那么多的好处
+
+  - 索引用于数据过滤和数据排序。如果你经常以魔种特定的顺序排序数据，则该数据可能适合做索引。
+
+  - 可以再索引中定义多个列（例如，州加上城市）。这样的索引仅在以州加城市的顺序排序时有用。如果按城市排序，则这种索引没有用处
+
+  - ```sql
+    create index prod_name_ind
+    on products(paod_name)
+    --索引必须唯一命名。这里的索引名prod_name_ind 在关键字create index之后定义。on用来指定被索引的表，而索引中包含的列在表名后的括号中给出
+    ```
+
+- 触发器
+
+  - 触发器是特殊的存储过程，他在特定的数据库活动发生时自动执行。夫发起可以再特定表上insert、update和delete操作（或组合）相关联。
+  - 触发器常见用途
+    - 保证数据一致。例如，在INSERT或UPDATE操作中将所有州名转换为大写。
+    - 基于某个表的变动在其他表上执行活动。例如，每当更新或删除一行时将审计跟踪记录写入某个日志表。
+    - 进行额外的验证并根据需要回退数据。例如，保证某个顾客的可用资金不超限定，如果已经超出，则阻塞插入。
+    - 计算计算列的值或更新时间戳。
+
+  ```sql
+  CREATE TRIGGER customer_state
+  ON Customers
+  FOR INSERT, UPDATE
+  AS
+  UPDATE Customers
+  SET cust_state = Upper(cust_state)
+  WHERE Customers.cust_id = inserted.cust_id;
+  --约束比触发器更快
+  ```
+
+- 数据库安全
+
+  - 安全性使用SQL的GRANT和REVOKE语句来管理，不过，大多数DBMS提供了交互式的管理实用程序，这些实用程序在内部使
+    用GRANT和REVOKE语句。
 

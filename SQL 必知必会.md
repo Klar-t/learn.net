@@ -248,3 +248,5 @@
   - 安全性使用SQL的GRANT和REVOKE语句来管理，不过，大多数DBMS提供了交互式的管理实用程序，这些实用程序在内部使
     用GRANT和REVOKE语句。
 
+[参考](<https://www.cnblogs.com/sunshinewang/p/6789419.html>)
+
